@@ -101,6 +101,11 @@
 #define U_CELL_SOCK_SARA_R422_DNS_DELAY_MILLISECONDS 500
 #endif
 
+#ifndef U_CELL_SOCK_CLOSE_RETRIES
+/** Number of AT+USOCL attempts made by uCellSockClose(). */
+# define U_CELL_SOCK_CLOSE_RETRIES 3
+#endif
+
 /* ----------------------------------------------------------------
  * TYPES
  * -------------------------------------------------------------- */
@@ -905,7 +910,7 @@ int32_t uCellSockClose(uDeviceHandle_t cellHandle,
                 // If have seen modules return ERROR to this
                 // immediately so try a few times
                 deviceError.type = U_AT_CLIENT_DEVICE_ERROR_TYPE_ERROR;
-                for (size_t x = 3; (x > 0) &&
+                for (size_t x = U_CELL_SOCK_CLOSE_RETRIES; (x > 0) &&
                      (deviceError.type != U_AT_CLIENT_DEVICE_ERROR_TYPE_NO_ERROR);
                      x--) {
                     uAtClientLock(atHandle);
