@@ -933,7 +933,9 @@ int32_t uCellSockClose(uDeviceHandle_t cellHandle,
                     uAtClientCommandStopReadResponse(atHandle);
                     uAtClientDeviceErrorGet(atHandle, &deviceError);
                     atError = uAtClientUnlock(atHandle);
-                    if (deviceError.type != U_AT_CLIENT_DEVICE_ERROR_TYPE_NO_ERROR) {
+                    if ((deviceError.type != U_AT_CLIENT_DEVICE_ERROR_TYPE_NO_ERROR) &&
+                        (x > 1)) {
+                        /* Back off only when another close attempt follows. */
                         uPortTaskBlock(1000);
                     }
                 }
