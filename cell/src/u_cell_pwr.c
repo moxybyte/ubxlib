@@ -1264,6 +1264,8 @@ static int32_t powerOff(uCellPrivateInstance_t *pInstance,
         // Switch off UART power saving first, as it seems to
         // affect the power off process.
         uAtClientLock(atHandle);
+        uAtClientTimeoutSet(atHandle,
+                            U_CELL_PRIVATE_CPWROFF_WAIT_TIME_SECONDS * 1000);
         uAtClientCommandStart(atHandle, "AT+UPSV=0");
         uAtClientCommandStopReadResponse(atHandle);
         uAtClientUnlock(atHandle);
