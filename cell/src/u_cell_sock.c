@@ -905,58 +905,68 @@ int32_t uCellSockClose(uDeviceHandle_t cellHandle,
         if (sockHandle >= 0) {
             pSocket = pFindBySockHandle(sockHandle);
             if (pSocket != NULL) {
-                errnoLocal = U_SOCK_EIO;
-                // Close the socket through the cellular module
-                // If have seen modules return ERROR to this
-                // immediately so try a few times
-                deviceError.type = U_AT_CLIENT_DEVICE_ERROR_TYPE_ERROR;
-                for (size_t x = U_CELL_SOCK_CLOSE_RETRIES; (x > 0) &&
-                     (deviceError.type != U_AT_CLIENT_DEVICE_ERROR_TYPE_NO_ERROR);
-                     x--) {
-                    uAtClientLock(atHandle);
-                    uAtClientTimeoutSet(atHandle,
-                                        U_SOCK_CLOSE_TIMEOUT_SECONDS * 1000);
-                    uAtClientCommandStart(atHandle, "AT+USOCL=");
-                    // Write module socket handle
-                    uAtClientWriteInt(atHandle, pSocket->sockHandleModule);
-                    if (!U_CELL_PRIVATE_HAS(pInstance->pModule,
-                                            U_CELL_PRIVATE_FEATURE_ASYNC_SOCK_CLOSE)) {
-                        // Asynchronous closure not supported
-                        pCallback = NULL;
-                    }
-                    if (pCallback != NULL) {
-                        // If a callback was given and the module
-                        // supports asynchronous socket closure then
-                        // request it
-                        uAtClientWriteInt(atHandle, 1);
-                    }
-                    uAtClientCommandStopReadResponse(atHandle);
-                    uAtClientDeviceErrorGet(atHandle, &deviceError);
-                    atError = uAtClientUnlock(atHandle);
-                    if ((deviceError.type != U_AT_CLIENT_DEVICE_ERROR_TYPE_NO_ERROR) &&
-                        (x > 1)) {
-                        /* Back off only when another close attempt follows. */
-                        uPortTaskBlock(1000);
-                    }
-                }
-
-                if (atError == 0) {
-                    // All good
+                if (pSocket->closedByRemote) {
+                    // The modem has already reported +UUSOCL for this socket.
+                    // Closing an already-closed socket is successful; only the
+                    // local socket entry still needs to be released.
                     errnoLocal = U_SOCK_ENONE;
                     pSocket->pAsyncClosedCallback = pCallback;
-                    if (pCallback == NULL) {
-                        // If no callback was given, or one
-                        // was given and the the module
-                        // doesn't support asynchronous closure,
-                        // call the trampoline from here
-                        uAtClientCallback(atHandle, closedCallback,
-                                          U_INT32_TO_PTR(sockHandle));
-                    }
+                    uAtClientCallback(atHandle, closedCallback,
+                                      U_INT32_TO_PTR(sockHandle));
                 } else {
-                    // Got an AT interace error, see
-                    // what the module's socket error
-                    // number has to say for debug purposes
-                    doUsoer(atHandle);
+                    errnoLocal = U_SOCK_EIO;
+                    // Close the socket through the cellular module
+                    // If have seen modules return ERROR to this
+                    // immediately so try a few times
+                    deviceError.type = U_AT_CLIENT_DEVICE_ERROR_TYPE_ERROR;
+                    for (size_t x = U_CELL_SOCK_CLOSE_RETRIES; (x > 0) &&
+                         (deviceError.type != U_AT_CLIENT_DEVICE_ERROR_TYPE_NO_ERROR);
+                         x--) {
+                        uAtClientLock(atHandle);
+                        uAtClientTimeoutSet(atHandle,
+                                            U_SOCK_CLOSE_TIMEOUT_SECONDS * 1000);
+                        uAtClientCommandStart(atHandle, "AT+USOCL=");
+                        // Write module socket handle
+                        uAtClientWriteInt(atHandle, pSocket->sockHandleModule);
+                        if (!U_CELL_PRIVATE_HAS(pInstance->pModule,
+                                                U_CELL_PRIVATE_FEATURE_ASYNC_SOCK_CLOSE)) {
+                            // Asynchronous closure not supported
+                            pCallback = NULL;
+                        }
+                        if (pCallback != NULL) {
+                            // If a callback was given and the module
+                            // supports asynchronous socket closure then
+                            // request it
+                            uAtClientWriteInt(atHandle, 1);
+                        }
+                        uAtClientCommandStopReadResponse(atHandle);
+                        uAtClientDeviceErrorGet(atHandle, &deviceError);
+                        atError = uAtClientUnlock(atHandle);
+                        if ((deviceError.type != U_AT_CLIENT_DEVICE_ERROR_TYPE_NO_ERROR) &&
+                            (x > 1)) {
+                            /* Back off only when another close attempt follows. */
+                            uPortTaskBlock(1000);
+                        }
+                    }
+
+                    if (atError == 0) {
+                        // All good
+                        errnoLocal = U_SOCK_ENONE;
+                        pSocket->pAsyncClosedCallback = pCallback;
+                        if (pCallback == NULL) {
+                            // If no callback was given, or one
+                            // was given and the the module
+                            // doesn't support asynchronous closure,
+                            // call the trampoline from here
+                            uAtClientCallback(atHandle, closedCallback,
+                                              U_INT32_TO_PTR(sockHandle));
+                        }
+                    } else {
+                        // Got an AT interace error, see
+                        // what the module's socket error
+                        // number has to say for debug purposes
+                        doUsoer(atHandle);
+                    }
                 }
             }
         }
